@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <cstring>
+#include <algorithm>
 
 using std::unordered_set;
 
@@ -54,7 +55,8 @@ void GcSemiSpace::collect(intptr_t* fp){
   //walkStack(fp);
   //copy the reachable objects into `to` space, starting from the root set.
   intptr_t arg_info_word, local_info_word;
-  roots.clear();
+  std::unordered_set<intptr_t*> roots;
+  
   while(fp < based_fp){
     arg_info_word = *(fp - 1);
     //readbit(fp,arg_info_word,2);
@@ -75,12 +77,13 @@ void GcSemiSpace::collect(intptr_t* fp){
     fp = (intptr_t*) *fp;
   }
   for(intptr_t* i:roots){
-    i = copy(i);
+    copy(i);
   }
   //swap "from" and "to"
-  intptr_t* temp= from;
-  from= to;
-  to = temp;
+  std::swap(from, to);
+  //intptr_t* temp= from;
+  //from= to;
+  //to = temp;
   bump_ptr=alloc_ptr;
   alloc_ptr=to;
   //call reportGCStatus
@@ -89,67 +92,63 @@ void GcSemiSpace::collect(intptr_t* fp){
   live_word=0;
 }
 
-//void GcSemiSpace::walkStack(intptr_t* fp){
-//  intptr_t arg_info_word, local_info_word;
-//  roots.clear();
-//  while(fp < based_fp){
-//    arg_info_word = *(fp - 1);
-//    readbit(fp,arg_info_word,2);
-//    local_info_word = *(fp - 2);
-//    readbit(fp,local_info_word, -3);
-//    fp = (intptr_t*) *fp;
-//  }
-//}
 
-//void GcSemiSpace::readbit(intptr_t* curr_fp,int word,int offset){
-//  for(int i=0;i<32;i++){
-//    if(word & 1){//find pointer
-//      if(offset > 0){//in arg
-//        roots.insert(curr_fp + offset + i);
-//      }
-//      if(offset < 0){//in local
-//        roots.insert(curr_fp + offset - i);
-//      }
-//  }
-//    word >>= 1;
-//  }
-//}
-
-
-intptr_t* GcSemiSpace::copy(intptr_t* r){
-  intptr_t header,num_words;
+void GcSemiSpace::copy(intptr_t* r){
+  //intptr_t num_words;
   intptr_t* tmp = (intptr_t*) *r;
-  if(tmp==NULL) return tmp;
-  header=*(tmp-1);
-  if(header&1){
-    num_words=header>>24;
+  if(tmp == NULL) return;
+
+
+  intptr_t header = *(tmp - 1);
+  if (header % 2 == 0) {
+        return;
+  }
+
+  if(header & 1){
+    auto size = header >> 24;
     live_obj ++;
-    live_word=live_word+num_words+1;
+    live_word = live_word + size + 1;
 
     //add forward pointer
-    intptr_t* temp=alloc_ptr;
-    intptr_t* forward=alloc_ptr+1;
-    alloc_ptr=alloc_ptr+num_words+1;
-    *temp=header;
+    //intptr_t* temp = alloc_ptr;
+    //intptr_t* forward = alloc_ptr + 1;
+    //
+//
+    //memcpy(alloc_ptr, tmp - 1, (size + 1) * sizeof(intptr_t));
+    //alloc_ptr = alloc_ptr + size + 1;
+    ////*temp = header;
+    ////for(int i = 0; i < size; i++){
+    ////  *(temp + i + 1) = *(tmp + i);
+    ////}
+    //*r = (intptr_t) forward;
+    //*(tmp - 1) = (intptr_t) forward;
+    auto new_frame = alloc_ptr + 1;
+    memcpy(alloc_ptr, tmp - 1, (size + 1) * sizeof(intptr_t));
+    alloc_ptr += size + 1;
 
-    for(int i=0;i<num_words;i++){
-      *(temp+i+1)=*(tmp+i);
-    }
-    *r=(intptr_t) forward;
-    *(tmp-1)=(intptr_t) forward;
+    *r = (intptr_t)new_frame;
+    *(tmp - 1) = (intptr_t)new_frame;
 
-    intptr_t lastbit=header>>1;
-    for(int i=0;i<num_words;i++){
-      if(lastbit&1){
-        intptr_t* heap_ptr=temp+i+1;
-        heap_ptr=copy(heap_ptr);
-      }
-      lastbit>>=1;
+    auto size_new = *(new_frame - 1) >> 24;
+    auto is_ref = *(new_frame - 1) >> 1;
+    for (auto i = 0u; i < size_new; is_ref >>= 1, ++i) {
+        if (is_ref & 1) {
+            copy(new_frame + i);
+        }
     }
-    return r;
+
+    //intptr_t lastbit = header >> 1;
+    //for(int i = 0; i < size; i++){
+    //  if(lastbit & 1){
+    //    intptr_t* heap_ptr = temp + i + 1;
+    //    heap_ptr = copy(heap_ptr);
+    //  }
+    //  lastbit >>= 1;
+    //}
+    return;
   }
-  *r=header;
-  return r;
+  *r = header;
+  return;
 
 }
 

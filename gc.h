@@ -37,7 +37,7 @@ class GcSemiSpace {
   void collect(intptr_t* fp);
   //void walkStack(intptr_t* fp);
   //void readbit(intptr_t* curr_fp,int word,int offset);
-  intptr_t* copy(intptr_t* r);
+  void copy(intptr_t* r);
   //void swap(intptr_t* f,intptr_t* t);
   //void struct_copy(intptr_t* ptr);
 
@@ -47,7 +47,7 @@ class GcSemiSpace {
   intptr_t *based_fp,*myHeap,*from,*to,*bump_ptr,*alloc_ptr;
   int heap_size,semi_size;
   size_t live_obj,live_word;
-  std::unordered_set<intptr_t*> roots;
+  
   // Your private methods for functionality such as garbage
   // collection, stack walking, and copying live data should go here
 };
