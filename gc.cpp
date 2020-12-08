@@ -1,140 +1,138 @@
 #include "gc.h"
-#include <iostream>
-#include <cassert>
-#include <cstdio>
-#include <sstream>
-#include <iomanip>
-#include <stdio.h>
-#include <string.h>
+
 #include <cstring>
+#include <algorithm>
+using namespace std;
 
-using std::unordered_set;
-
-
-// Initialize GC data structures and allocate space for the heap
-//fp cannot be nullptr; heap size is positive & even num
-GcSemiSpace::GcSemiSpace(intptr_t* frame_ptr, int heap_size_in_words){
-  assert(frame_ptr!=nullptr && "Base frame pointer should not be a `nullptr`");
-  assert((heap_size_in_words >=0 && heap_size_in_words%2 ==0)&&"Heap size should be positive and even");
-  assert(sizeof(intptr_t)==4 && "Words must be 4-byte long");
-
-  based_fp=frame_ptr;
-  heap_size=heap_size_in_words;
-  semi_size=heap_size_in_words/2;
-  myHeap=(intptr_t *)malloc(heap_size_in_words * 4); 
-
-  from=myHeap;
-  to=myHeap+semi_size;
-
-  bump_ptr=from;
-  alloc_ptr=to;
-
+// Helpers for Frame
+static intptr_t frame_header(intptr_t* frame) {
+    return *(frame - 1);
 }
 
-//Allocate "num_words+1",return a pointer to second words
-intptr_t* GcSemiSpace::Alloc(int32_t num_words, intptr_t * curr_frame_ptr) {
-  assert(num_words>0 && "Num of words must greater than 0");
-  assert((bump_ptr>= from && bump_ptr<=from+semi_size)&&"Bump pointer should point to somewhere in the from space" );
-  intptr_t* output;
-  if(bump_ptr +num_words+1>from+semi_size){ 
-    collect(curr_frame_ptr);
-  }
-  if(bump_ptr +num_words+1>from+semi_size){ 
-    throw OutOfMemoryError();
-  }
-
-  output=bump_ptr+1;
-  bump_ptr=bump_ptr+num_words+1;
- 
-  return output;
+static intptr_t* next_frame(intptr_t* frame) {
+    return (intptr_t*)(*frame);
 }
 
-void GcSemiSpace::collect(intptr_t* fp){
-  //walk the stack to get the root set
-  walkStack(fp);
-  //copy the reachable objects into `to` space, starting from the root set.
-  for(intptr_t* i:roots){
-    i=copy(i);
-  }
-  //swap "from" and "to"
-  intptr_t* temp= from;
-  from= to;
-  to = temp;
-  bump_ptr=alloc_ptr;
-  alloc_ptr=to;
-  //call reportGCStatus
-  ReportGCStats(live_obj,live_word);
-  live_obj=0;
-  live_word=0;
+static size_t frame_size(intptr_t* frame) {
+    return frame_header(frame) >> 24;
 }
 
-void GcSemiSpace::walkStack(intptr_t* fp){
-  intptr_t arg_info_word, local_info_word;
-  roots.clear();
-  while(fp < based_fp){
-    arg_info_word = *(fp - 1);
-    readbit(fp,arg_info_word,2);
-    local_info_word = *(fp - 2);
-    readbit(fp,local_info_word, -3);
-    fp = (intptr_t*) *fp;
-  }
+static intptr_t frame_argument_info(intptr_t* frame) {
+    return *(frame - 1);
 }
 
-void GcSemiSpace::readbit(intptr_t* curr_fp,int word,int offset){
-  for(int i=0;i<32;i++){
-    if(word & 1){//find pointer
-      if(offset > 0){//in arg
-        roots.insert(curr_fp + offset + i);
-      }
-      if(offset < 0){//in local
-        roots.insert(curr_fp + offset - i);
-      }
-  }
-    word >>= 1;
-  }
+static intptr_t frame_local_info(intptr_t* frame) {
+    return *(frame -2);
 }
 
+GcSemiSpace::GcSemiSpace(intptr_t* frame_ptr, int heap_size_in_words) {
+    start_ = new intptr_t[heap_size_in_words];
 
-intptr_t* GcSemiSpace::copy(intptr_t* r){
-  intptr_t header,num_words;
-  intptr_t* tmp = (intptr_t*) *r;
-  if(tmp==NULL) return tmp;
-  header=*(tmp-1);
-  if(header&1){
-    num_words=header>>24;
-    live_obj ++;
-    live_word=live_word+num_words+1;
+    frame_end_ = frame_ptr;
+    half_heap_size_ = heap_size_in_words >> 1;
 
-    //add forward pointer
-    intptr_t* temp=alloc_ptr;
-    intptr_t* forward=alloc_ptr+1;
-    alloc_ptr=alloc_ptr+num_words+1;
-    *temp=header;
+    from_space_ = start_;
+    to_space_ = start_ + half_heap_size_;
 
-    for(int i=0;i<num_words;i++){
-      *(temp+i+1)=*(tmp+i);
+    bump_ptr_ = from_space_;
+    alloc_ptr_ = to_space_;
+
+    live_objects_ = 0;
+    live_words_ = 0;
+}
+
+GcSemiSpace::~GcSemiSpace() {
+    delete[] start_;
+}
+
+intptr_t* GcSemiSpace::Alloc(int32_t num_words, intptr_t* curr_frame_ptr) {
+    int32_t alloc_size = num_words + 1;
+
+    if (bump_ptr_ + alloc_size > from_space_ + half_heap_size_) {
+        _collect(curr_frame_ptr);
+
+        ReportGCStats(live_objects_, live_words_);
+
+        live_objects_ = 0;
+        live_words_ = 0;
     }
-    *r=(intptr_t) forward;
-    *(tmp-1)=(intptr_t) forward;
 
-    intptr_t lastbit=header>>1;
-    for(int i=0;i<num_words;i++){
-      if(lastbit&1){
-        intptr_t* heap_ptr=temp+i+1;
-        heap_ptr=copy(heap_ptr);
-      }
-      lastbit>>=1;
+    if (bump_ptr_ + alloc_size > from_space_ + half_heap_size_) {
+        throw OutOfMemoryError();
     }
-    return r;
-  }
-  *r=header;
-  return r;
 
+    auto addr = bump_ptr_ + 1;
+    bump_ptr_ += alloc_size;
+
+    return addr;
 }
 
+void GcSemiSpace::_collect(intptr_t* curr_frame_ptr) {
+    unordered_set<intptr_t*> root_set;
 
+    // walk [curr_frame_ptr, frame_end_)
+    for (auto frame = curr_frame_ptr; frame < frame_end_; frame = next_frame(frame)) {
+        auto argument_info = frame_argument_info(frame);
+        auto local_info = frame_local_info(frame);
 
+        for (int i = 0; i < 32; argument_info >>= 1, local_info >>= 1, ++i) {
+            if (argument_info & 1) {
+                root_set.emplace(frame + i + 2);
+            }
 
+            if (local_info & 1) {
+                root_set.emplace(frame - i - 3);
+            }
+        }
+    }
 
+    for (auto root: root_set) {
+        _copy(root);
+    }
 
+    swap(from_space_, to_space_);
+    bump_ptr_ = alloc_ptr_;
+    alloc_ptr_ = to_space_;
+}
+
+void GcSemiSpace::_copy(intptr_t* root) {
+    auto frame = next_frame(root);
+
+    if (!frame) {
+        return;
+    }
+
+    auto frmhdr = frame_header(frame);
+    if (frmhdr % 2 == 0) {
+        *root = frmhdr;
+        return;
+    }
+
+    auto size = frame_size(frame);
+    _update_stats(size);
+
+    auto new_frame = alloc_ptr_ + 1;
+    memcpy(alloc_ptr_, frame - 1, (size + 1) * sizeof(intptr_t));
+    alloc_ptr_ += size + 1;
+
+    *root = (intptr_t)new_frame;
+    *(frame - 1) = *root;
+
+    _copy_ref(new_frame);
+}
+
+void GcSemiSpace::_copy_ref(intptr_t* frame) {
+    auto size = frame_size(frame);
+    auto is_ref = frame_header(frame) >> 1;
+    for (auto i = 0u; i < size; is_ref >>= 1, ++i) {
+        if (is_ref & 1) {
+            _copy(frame + i);
+        }
+    }
+}
+
+void GcSemiSpace::_update_stats(size_t size) {
+    live_objects_ += 1;
+    live_words_ += size + 1;
+}
 
