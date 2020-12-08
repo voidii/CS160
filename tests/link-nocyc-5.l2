@@ -1,0 +1,39 @@
+// create a bunch of linked lists recursively
+
+struct %list {
+  %list next;
+};
+
+def makeList(int n): %list {
+  %list list;
+  %list tmp;
+
+  if 0 < n {
+    list := new %list;
+    tmp := makeList(n - 1);
+    list.next := tmp;
+  }
+  return list;
+}
+
+def min(int a, int b): int {
+  if b < a {
+    a := b;
+  }
+  return a;
+}
+
+%list l;
+int counter;
+int size;
+int n;
+
+n := 10;
+
+while counter < n {
+  size := min(counter, 2 * n - counter);
+  l := makeList(counter);
+  counter := counter + 1;
+}
+
+output counter;

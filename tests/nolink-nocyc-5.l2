@@ -1,0 +1,45 @@
+// A test case with no links or cycles but nils on the root set and function calls
+
+struct %foo {
+       int bar;
+};
+
+struct %bar {
+       %bar bar;
+       int quux;
+};
+
+def bar(): %bar {
+    %bar ret;
+    ret := new %bar;
+    ret.quux := 2;
+    return ret;
+}
+
+def foo(): int {
+    int dummy;
+    %bar y;
+
+    y := bar();
+    return y;
+}
+
+%foo x;
+int out;
+%bar y;
+int counter;
+
+// Allocate 10 objects, there will be at most 2 live objects after a collection
+counter := 10;
+
+while 0 < counter {
+      x := new %foo;
+      y := new %bar;
+      y := nil;
+      y := foo();
+      out := out + y.quux;
+      counter := counter - 1;
+}
+
+
+output out;

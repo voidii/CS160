@@ -1,0 +1,161 @@
+// Create complete graphs of some sizes
+
+struct %node {
+  int mark;
+  int value;
+  %list children;
+};
+
+struct %list {
+  %node head;
+  %list tail;
+};
+
+// get given node from the list of nodes
+def n(%list nodes, int i): %node {
+  while 0 < i {
+    nodes := nodes.tail;
+    i := i - 1;
+  }
+
+  return nodes.head;
+}
+
+def freshNodes(int n): %list {
+  %list l;
+  %list tmp;
+  while 0 < n {
+    tmp := new %list;
+    tmp.tail := l;
+    l := tmp;
+    l.head := new %node;
+    n := n - 1;
+  }
+
+  return l;
+}
+
+def add(%node n, %list list): int {
+  %list t;
+  t := new %list;
+  t.head := list.head;
+  t.tail := list.tail;
+  list.head := n;
+  list.tail := t;
+  return 0;
+}
+
+def addEdge(%node n, %node m): int {
+  %list c;
+  int exists;
+  c := n.children;
+
+  while ! c = nil {
+    if c.head = m {
+      exists := 1;
+    }
+    c := c.tail;
+  }
+
+  if exists = 0 {
+    if n.children = nil {
+      n.children := new %list;
+      n.children.head := m;
+    } else {
+      // using exists as dummy
+      exists := add(m, n.children);
+    }
+  }
+
+  return 0;
+}
+
+def appendR(%list source, %list target): int {
+  int dummy;
+  while ! source = nil {
+    dummy := add(source.head, target);
+    source := source.tail;
+  }
+
+  return dummy;
+}
+
+// create complete graph of size n and return a handle to an arbitrary node
+def K(int n): %node {
+  %list nodes;
+  %node u;
+  %node v;
+  int dummy;
+  int i;
+  int j;
+  nodes := freshNodes(n);
+
+  while i < n {
+    j := 0;
+    u := n(nodes, i);
+    while j < n {
+      v := n(nodes, j);
+      if ! u = v {
+        dummy := addEdge(u, v);
+      }
+      j := j + 1;
+    }
+    i := i + 1;
+  }
+
+  return nodes.head;
+}
+
+// do a depth-first traversal and count the number of edges
+def dfs(%node graph): int {
+  %list todo;
+  %list tmp;
+  int nEdges;
+  int dummy;
+  %node v;
+  %list c;
+  todo := new %list;
+  todo.head := graph;
+
+  while ! todo = nil {
+    v := todo.head;
+    todo := todo.tail;
+    if v.mark = 0 {
+    v.mark := 1;
+    c := v.children;
+    while ! c = nil {
+      if c.head.mark = 0 {
+        if todo = nil {
+          todo := new %list;
+          todo.head := c.head;
+        } else {
+          dummy := add(c.head, todo);
+        }
+      }
+      c := c.tail;
+      nEdges := nEdges + 1;
+    }
+    }
+  }
+
+  return nEdges;
+}
+
+int total;
+%node g;
+int n;
+
+g := K(4);
+n := dfs(g);
+total := total + n;
+
+g := K(5);
+n := dfs(g);
+total := total + n;
+
+g := K(4);
+n := dfs(g);
+total := total + n;
+
+// should be 13
+output total;

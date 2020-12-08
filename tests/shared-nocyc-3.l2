@@ -1,0 +1,170 @@
+// Transitive closure of a DAG
+
+struct %node {
+  int mark;
+  %list children;
+};
+
+struct %list {
+  %node head;
+  %list tail;
+};
+
+// get given node from the list of nodes
+def n(%list nodes, int i): %node {
+  while 0 < i {
+    nodes := nodes.tail;
+    i := i - 1;
+  }
+
+  return nodes.head;
+}
+
+def freshNodes(int n): %list {
+  %list l;
+  %list tmp;
+  while 0 < n {
+    tmp := new %list;
+    tmp.tail := l;
+    l := tmp;
+    l.head := new %node;
+    n := n - 1;
+  }
+
+  return l;
+}
+
+def add(%node n, %list list): int {
+  %list t;
+  t := new %list;
+  t.head := list.head;
+  t.tail := list.tail;
+  list.head := n;
+  list.tail := t;
+  return 0;
+}
+
+def addEdge(%node n, %node m): int {
+  %list c;
+  int exists;
+  c := n.children;
+
+  while ! c = nil {
+    if c.head = m {
+      exists := 1;
+    }
+    c := c.tail;
+  }
+
+  if exists = 0 {
+    if n.children = nil {
+      n.children := new %list;
+      n.children.head := m;
+    } else {
+      // using exists as dummy
+      exists := add(m, n.children);
+    }
+  }
+
+  return 0;
+}
+
+def appendR(%list source, %list target): int {
+  int dummy;
+  while ! source = nil {
+    dummy := add(source.head, target);
+    source := source.tail;
+  }
+
+  return dummy;
+}
+
+def descendants(%node n): %list {
+  %list result;
+  %list c;
+  %list rec;
+  int dummy;
+  c := n.children;
+
+  while ! c = nil {
+    if result = nil {
+      result := new %list;
+      result.head := c.head;
+    } else {
+      dummy := add(c.head, result);
+    }
+    rec := descendants(c.head);
+    dummy := appendR(rec, result);
+    c := c.tail;
+  }
+
+  return result;
+}
+
+def transitiveClosure(%node n): int {
+  %list c;
+  %list r;
+  int dummy;
+  c := n.children;
+
+  while ! c = nil {
+    dummy := transitiveClosure(c.head);
+    c := c.tail;
+  }
+
+  r := descendants(n);
+
+  while ! r = nil {
+    dummy := addEdge(n, r.head);
+    r := r.tail;
+  }
+
+  return 0;
+}
+
+%list nodes;
+%node n0;
+%node n1;
+%node n2;
+%node n3;
+%node n4;
+int edgeCount;
+int dummy;
+%list c;
+
+nodes := freshNodes(5);
+
+// the graph:
+//
+//   0--------------->1
+//    \                \
+//     \                \
+//      \                \
+//       \                \
+//        v               v
+//        2-------------->3------------->4
+
+n0 := n(nodes, 0);
+n1 := n(nodes, 1);
+n2 := n(nodes, 2);
+n3 := n(nodes, 3);
+n4 := n(nodes, 4);
+
+dummy := addEdge(n0, n1);
+dummy := addEdge(n0, n2);
+dummy := addEdge(n1, n3);
+dummy := addEdge(n2, n3);
+dummy := addEdge(n3, n4);
+
+dummy := transitiveClosure(nodes);
+
+while ! nodes = nil {
+  c := nodes.head.children;
+  while ! c = nil {
+    edgeCount := edgeCount + 1;
+    c := c.tail;
+  }
+  nodes := nodes.tail;
+}
+
+output edgeCount; // should be 7

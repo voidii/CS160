@@ -1,0 +1,212 @@
+// Polynomial addition and subtraction
+
+// A polynomial a0*x^0+a1*x^1+...+an*x^n is represented as the linked list:
+//
+// a0 -> a1 -> ... -> an
+
+struct %poly {
+  int coeff;
+  %poly next;
+};
+
+// read coefficient of x^n from the polynomial
+def a(%poly p, int n): int {
+  while 0 < n {
+    p := p.next;
+    n := n - 1;
+  }
+  return p.coeff;
+}
+
+// polynomial addition
+def add(%poly p, %poly q): %poly {
+  %poly result;
+  %poly current;
+  int carry;
+  result := new %poly;
+  current := result;
+
+  // NOTE: because of the fencepost problem we never write to the
+  // first coefficient
+  while [! p = nil] && [! q = nil] {
+    current.next := new %poly;
+    current := current.next;
+
+    current.coeff := p.coeff + q.coeff + carry;
+
+    if 2 <= current.coeff {
+      current.coeff := current.coeff - 2;
+      carry := 1;
+    } else {
+      carry := 0;
+    }
+
+    p := p.next;
+    q := q.next;
+  }
+
+  if p = nil {
+    p := q; // swap the polynomials so p is the larger one
+  }
+
+  while ! p = nil {
+    current.next := new %poly;
+    current := current.next;
+
+    current.coeff := p.coeff + carry;
+
+    if 2 <= current.coeff {
+      current.coeff := current.coeff - 2;
+      carry := 1;
+    } else {
+      carry := 0;
+    }
+
+    p := p.next;
+  }
+
+  if carry = 1 {
+    current.next :=  new %poly;
+    current.next.coeff := 1;
+  }
+
+  return result.next;
+}
+
+// Polynomial subtraction, assuming p > q
+def sub(%poly p, %poly q): %poly {
+  %poly result;
+  %poly current;
+  int carry;
+  result := new %poly;
+  current := result;
+
+  // NOTE: because of the fencepost problem we never write to the
+  // first coefficient
+  while [! p = nil] && [! q = nil] {
+    current.next := new %poly;
+    current := current.next;
+
+    current.coeff := p.coeff - q.coeff + carry;
+
+    if current.coeff < 0 {
+      current.coeff := current.coeff + 2;
+      carry := -1;
+    } else {
+      carry := 0;
+    }
+
+    p := p.next;
+    q := q.next;
+  }
+
+  while ! p = nil {
+    current.next := new %poly;
+    current := current.next;
+
+    current.coeff := p.coeff + carry;
+
+    if current.coeff < 0 {
+      current.coeff := current.coeff + 2;
+      carry := -1;
+    } else {
+      carry := 0;
+    }
+
+    p := p.next;
+  }
+
+  return result.next;
+}
+
+// returns the degree of the polynomial + 1. we assume the degree of 0
+// is 0, just like any other constant polynomial.
+def size(%poly a): int {
+  int result;
+  while ! a = nil {
+    result := result + 1;
+    a := a.next;
+  }
+
+  return result;
+}
+
+// convert polynomial to integer and vice versa
+
+def eval(%poly p, int x): int {
+  int result;
+  int size;
+  int a;
+  size := size(p);
+  while 0 < size {
+    size := size - 1;
+    a := a(p, size);
+    result := result * x + a;
+    // result := result * x + p.coeff;
+    // p := p.next;
+  }
+
+  return result;
+}
+
+// perform unsigned integer division. this algorithm is exponential
+// (one could use a faster doubling algorithm instead but this is fast
+// enough for our purposes).
+def div(int x, int y): int {
+  int result;
+  while y <= x {
+    x := x - y;
+    result := result + 1;
+  }
+
+  return result;
+}
+
+// interpret given integers as a polynomial in GF(2), i.e. extract its
+// binary representation.
+//
+// this algorithm is O(2^n) in the size of the polynomial
+def toPoly(int x): %poly {
+  %poly p;
+  %poly c;
+  int halfX;
+
+  p := new %poly;
+  c := p;
+
+  while 0 < x {
+    c.next := new %poly;
+    c := c.next;
+
+    halfX := div(x, 2);
+    if ! halfX * 2 = x {
+      c.coeff := 1;
+    }
+
+    x := halfX;
+  }
+
+  return p.next;
+}
+
+%poly a;
+%poly b;
+int tmp;
+int out;
+
+a := toPoly(15);
+b := toPoly(11);
+a := sub(a, b);
+
+out := eval(a, 2);
+
+a := toPoly(18);
+
+a := add(a, b);
+
+tmp := eval(a, 2);
+
+out := out * tmp;
+
+// should output 116
+output out;

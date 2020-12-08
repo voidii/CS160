@@ -1,0 +1,360 @@
+// Polynomial factorization over GF(2).
+
+// A polynomial a0*x^0+a1*x^1+...+an*x^n is represented as the linked list:
+//
+// a0 -> a1 -> ... -> an
+
+struct %poly {
+  int coeff;
+  %poly next;
+};
+
+// read coefficient of x^n from the polynomial
+def a(%poly p, int n): int {
+  while 0 < n {
+    p := p.next;
+    n := n - 1;
+  }
+  return p.coeff;
+}
+
+// polynomial addition
+def add(%poly p, %poly q): %poly {
+  %poly result;
+  %poly current;
+  int carry;
+  result := new %poly;
+  current := result;
+
+  // NOTE: because of the fencepost problem we never write to the
+  // first coefficient
+  while [! p = nil] && [! q = nil] {
+    current.next := new %poly;
+    current := current.next;
+
+    current.coeff := p.coeff + q.coeff + carry;
+
+    if 2 <= current.coeff {
+      current.coeff := current.coeff - 2;
+      carry := 1;
+    } else {
+      carry := 0;
+    }
+
+    p := p.next;
+    q := q.next;
+  }
+
+  if p = nil {
+    p := q; // swap the polynomials so p is the larger one
+  }
+
+  while ! p = nil {
+    current.next := new %poly;
+    current := current.next;
+
+    current.coeff := p.coeff + carry;
+
+    if 2 <= current.coeff {
+      current.coeff := current.coeff - 2;
+      carry := 1;
+    } else {
+      carry := 0;
+    }
+
+    p := p.next;
+  }
+
+  if carry = 1 {
+    current.next :=  new %poly;
+    current.next.coeff := 1;
+  }
+
+  return result.next;
+}
+
+// Polynomial subtraction, assuming p > q
+def sub(%poly p, %poly q): %poly {
+  %poly result;
+  %poly current;
+  %poly null;
+  int carry;
+  result := new %poly;
+  current := result;
+
+  // NOTE: because of the fencepost problem we never write to the
+  // first coefficient
+  while ! q = nil {
+    current.next := new %poly;
+    current := current.next;
+
+    current.coeff := (p.coeff - q.coeff) + carry;
+
+    if current.coeff < 0 {
+      current.coeff := current.coeff + 2;
+      carry := -1;
+    } else {
+      carry := 0;
+    }
+
+    p := p.next;
+    q := q.next;
+  }
+
+  while ! p = nil {
+    current.next := new %poly;
+    current := current.next;
+
+    current.coeff := p.coeff + carry;
+
+    if current.coeff < 0 {
+      current.coeff := current.coeff + 2;
+      carry := -1;
+    } else {
+      carry := 0;
+    }
+
+    p := p.next;
+  }
+
+  result := shrink(result.next);
+
+  return result;
+}
+
+// returns 1 if a > b in lexicographical order, o/w returns 0
+def gt(%poly a, %poly b): int {
+  int sizeA;
+  int sizeB;
+  int result;
+  int foundResult;
+  int digitA;
+  int digitB;
+
+  sizeA := size(a);
+  sizeB := size(b);
+
+  if sizeB < sizeA {
+    result := 1;
+  } else {
+    if sizeA < sizeB {
+      result := 0;
+    } else {
+      while 0 < sizeA && foundResult = 0 {
+        digitA := a(a, sizeA - 1);
+        digitB := a(b, sizeA - 1);
+
+        if digitB < digitA {
+          result := 1;
+          foundResult := 1;
+        } else {
+          if digitA < digitB {
+            result := 0;
+            foundResult := 1;
+          }
+        }
+
+        sizeA := sizeA - 1;
+      }
+    }
+  }
+
+  return result;
+}
+
+// returns the degree of the polynomial + 1. we assume the degree of 0
+// is 0, just like any other constant polynomial.
+def size(%poly a): int {
+  int result;
+  while ! a = nil {
+    result := result + 1;
+    a := a.next;
+  }
+
+  return result;
+}
+
+// returns a shrunk version of a (with unnecessary 0s in the high coefficents trimmed)
+def shrink(%poly a): %poly {
+  %poly result;
+  %poly current;
+  %poly prev;
+  int alreadyShrunk;
+  int sizeSoFar;
+  int actualSize;
+  int isZero;
+  result := a;
+  isZero := 1;
+
+  // check if the last coefficient is nonzero
+  while ! a = nil {
+    alreadyShrunk := a.coeff;
+    sizeSoFar := sizeSoFar + 1;
+
+    if ! alreadyShrunk = 0 {
+      actualSize := sizeSoFar;
+      isZero := 0;
+    }
+    a := a.next;
+  }
+
+  a := result;
+
+  if isZero = 1 {
+    result := new %poly;
+  } else {
+    if alreadyShrunk = 0 {
+      result := new %poly;
+      current := result;
+
+      while 0 < actualSize {
+        current.coeff := a.coeff;
+        a := a.next;
+        current.next := new %poly;
+        prev := current;
+        current := current.next;
+        actualSize := actualSize - 1;
+      }
+
+      prev.next := nil;
+    }
+  }
+
+  return result;
+}
+
+// a >= b if b > a
+def ge(%poly a, %poly b): int {
+  int r;
+  r := gt(b, a);
+
+  if r = 1 {
+    r := 0;
+  } else {
+    r := 1;
+  }
+
+  return r;
+}
+
+// greatest common divisor of two polynomials, using Euclid's
+// algorithm
+def gcd(%poly a, %poly b): %poly {
+  int aGeB;
+  %poly result;
+
+  aGeB := ge(a, b);
+
+  if ! aGeB = 1 {
+    result := gcd(b, a);
+  } else {
+    if b.next = nil && b.coeff = 0 {
+      // b is 0 so the result is a
+      result := a;
+    } else {
+      // using a as temporary to compute gcd(a, b) = gcd(b, a - b)
+      a := sub(a, b);
+      result := gcd(b, a);
+    }
+  }
+
+  return result;
+}
+
+// Square-free factorization algorithm
+def sff(%poly f): %poly {
+  return nil;
+}
+
+// convert polynomial to integer and vice versa
+
+def eval(%poly p, int x): int {
+  int result;
+  int size;
+  int a;
+  size := size(p);
+  while 0 < size {
+    size := size - 1;
+    a := a(p, size);
+    result := result * x + a;
+    // result := result * x + p.coeff;
+    // p := p.next;
+  }
+
+  return result;
+}
+
+// perform unsigned integer division. this algorithm is exponential
+// (one could use a faster doubling algorithm instead but this is fast
+// enough for our purposes).
+def div(int x, int y): int {
+  int result;
+  while y <= x {
+    x := x - y;
+    result := result + 1;
+  }
+
+  return result;
+}
+
+// interpret given integers as a polynomial in GF(2), i.e. extract its
+// binary representation.
+//
+// this algorithm is O(2^n) in the size of the polynomial
+def toPoly(int x): %poly {
+  %poly p;
+  %poly c;
+  int halfX;
+
+  p := new %poly;
+  c := p;
+
+  while 0 < x {
+    c.next := new %poly;
+    c := c.next;
+
+    halfX := div(x, 2);
+    if ! halfX * 2 = x {
+      c.coeff := 1;
+    }
+
+    x := halfX;
+  }
+
+  // handle 0
+  if p.next = nil {
+    p.next := new %poly;
+  }
+
+  return p.next;
+}
+
+%poly a;
+%poly b;
+int tmp;
+int out;
+
+out := 1;
+
+a := toPoly(18);
+b := toPoly(24);
+a := gcd(a, b);
+
+tmp := eval(a, 2);
+out := out * tmp;
+
+a := toPoly(112);
+b := toPoly(21);
+a := gcd(a, b);
+
+tmp := eval(a, 2);
+out := out * tmp;
+
+a := toPoly(42);
+a := gcd(a, b);
+
+tmp := eval(a, 2);
+out := out * tmp;
+
+// should output 6 * 7 * 21 = 882
+output out;

@@ -1,0 +1,21 @@
+// A test case with no links or cycles
+
+struct %foo {
+       int bar;
+};
+
+%foo x;
+%foo y;
+int counter;
+
+// Allocate 10 objects, there will be at most 2 live objects after a collection
+counter := 10;
+
+while 0 < counter {
+      x := new %foo;
+      y := new %foo;
+      counter := counter - 1;
+}
+
+
+output 0;

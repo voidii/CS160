@@ -1,0 +1,64 @@
+// Enumerate all balanced binary trees up to a given depth
+
+struct %tree {
+  %tree left;
+  %tree right;
+};
+
+def balancedTree(int depth): %tree {
+  %tree result;
+
+  if 0 < depth {
+    result := new %tree;
+    result.left := balancedTree(depth - 1);
+    result.right := balancedTree(depth - 1);
+  }
+
+  return result;
+}
+
+// calculate the size of a given tree
+def size(%tree tree): int {
+  int result;
+  int tmp;
+
+  if ![tree = nil] {
+    result := 1;
+    tmp := size(tree.left);
+    result := result + tmp;
+    tmp := size(tree.right);
+    result := result + tmp;
+  }
+
+  return result;
+}
+
+%tree tree;
+int size;
+int tmp;
+int counter;
+
+counter := 10;
+
+size := 2;
+
+while 0 < counter {
+  tree := balancedTree(counter - 1);
+  tmp := size(tree);
+  counter := counter - 1;
+  size := size + tmp + 1;
+}
+
+// do it twice so we can do some GC more than once
+
+counter := 10;
+
+while 0 < counter {
+  tree := balancedTree(counter - 1);
+  tmp := size(tree);
+  counter := counter - 1;
+  size := size + tmp + 1;
+}
+
+// The result should be 2048
+output size;

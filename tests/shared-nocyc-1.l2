@@ -1,0 +1,194 @@
+// Build some matrices, with sharing
+
+struct %vec {
+  int value;
+  %vec next;
+};
+
+struct %mat {
+  %vec col;
+  %mat next;
+};
+
+// passing the list to a function creates sharing but it is invisible
+// to GC because there is no allocation
+def cell(%mat l, int v, int u): int {
+  %vec col;
+  while 0 < v {
+    l := l.next;
+    v := v - 1;
+  }
+  col := l.col;
+  while 0 < u {
+    col := col.next;
+    u := u - 1;
+  }
+
+  return col.value;
+}
+
+def set(%mat l, int v, int u, int value): int {
+  %vec col;
+  while 0 < v {
+    l := l.next;
+    v := v - 1;
+  }
+  col := l.col;
+  while 0 < u {
+    col := col.next;
+    u := u - 1;
+  }
+
+  col.value := value; // set the value
+
+  return col.value;
+}
+
+// number of columns
+def nCols(%mat M): int {
+  int n;
+  while ! M = nil {
+    M := M.next;
+    n := n + 1;
+  }
+  return n;
+}
+
+def eye(int n): %mat {
+  %mat result;
+  %mat tmp;
+  %vec col;
+  %vec col2;
+  int i;
+  int k;
+  i := 0;
+  while i < n {
+    k := 0;
+    col := new %vec;
+    if k = n - i - 1 {
+      col.value := 1; // set the diagonal value to 1
+    }
+    while k < n {
+      k := k + 1;
+      col2 := new %vec;
+      col2.next := col;
+      col := col2;
+      if k = n - i - 1 {
+        col.value := 1; // set the diagonal value to 1
+      }
+    }
+    tmp := new %mat;
+    tmp.next := result;
+    result := tmp;
+    result.col := col;
+    i := i + 1;
+  }
+
+  return result;
+}
+
+def add(%mat A, %mat B): %mat {
+  int i;
+  int j;
+  int a;
+  int b;
+  int n;
+  %mat C;
+  int dummy;
+
+  n := nCols(A);
+  C := eye(n); // allocate space for result
+
+  i := 0;
+  while i < n {
+    j := 0;
+    while j < n {
+      a := cell(A, i, j);
+      b := cell(B, i, j);
+      dummy := set(C, i, j, a + b);
+      j := j + 1;
+    }
+    i := i + 1;
+  }
+
+  return C;
+}
+
+def mul(%mat A, %mat B): %mat {
+  int i;
+  int j;
+  int k;
+  int a;
+  int b;
+  int n;
+  int dummy;
+  %mat C;
+
+  n := nCols(A);
+  C := eye(n);
+
+  i := 0;
+  while i < n {
+    j := 0;
+    while j < n {
+      k := 0;
+      dummy := set(C, i, j, 0);
+      while k < n {
+        a := cell(A, i, k);
+        b := cell(B, k, j);
+        dummy := cell(C, i, j);
+        dummy := set(C, i, j, a * b + dummy);
+        k := k + 1;
+      }
+      j := j + 1;
+    }
+    i := i + 1;
+  }
+
+  return C;
+}
+
+def sum(%vec v): int {
+  int sum;
+  while ! v = nil {
+    sum := sum + v.value;
+    v := v.next;
+  }
+  return sum;
+}
+
+// create identity matrices then calculate sum(diag((I + I) * (I + I)))
+%mat I;
+%mat I2;
+%mat I4;
+%vec diag;
+%vec tmp;
+int dummy;
+int i;
+int j;
+
+I := eye(4);
+
+I2 := add(I, I);
+I := nil; // now I can be reclaimed
+I4 := mul(I2, I2);
+I2 := nil; // now I2 can be reclaimed
+
+
+// calculate diag here
+diag := new %vec;
+
+i := 0;
+while i < 4 {
+  dummy := cell(I4, i, i);
+  tmp := new %vec;
+  tmp.next := diag;
+  diag := tmp;
+  diag.value := dummy;
+  i := i + 1;
+}
+
+dummy := sum(diag);
+
+// this should output 12
+output dummy;

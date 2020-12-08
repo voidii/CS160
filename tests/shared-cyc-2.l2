@@ -1,0 +1,37 @@
+// create cycles of arbitrary sizes
+
+struct %node {
+  %node ptr;
+};
+
+def createCycle(int size) : %node {
+  %node head;
+  %node n;
+  %node n2;
+
+  head := new %node;
+  n := head;
+
+  while 1 < size {
+    n2 := new %node;
+    n.ptr := n2;
+    n := n2;
+    size := size - 1;
+  }
+
+  n.ptr := head;
+
+  return head;
+}
+
+%node n;
+int cntr;
+
+n := createCycle(4);
+n := createCycle(5);
+n := createCycle(6);
+n := createCycle(5);
+n := createCycle(3);
+n := createCycle(6);
+
+output 42;

@@ -1,0 +1,27 @@
+// A test case with no links or cycles but nils on the root set
+
+struct %foo {
+       int bar;
+};
+
+struct %bar {
+       %bar bar;
+       int quux;
+};
+
+%foo x;
+%bar y;
+int counter;
+
+// Allocate 10 objects, there will be at most 2 live objects after a collection
+counter := 10;
+
+while 0 < counter {
+      x := new %foo;
+      y := new %bar;
+      y := nil;
+      counter := counter - 1;
+}
+
+
+output 0;

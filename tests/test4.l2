@@ -1,0 +1,27 @@
+struct %thing { int num;
+               %thing next;
+               int num2;
+               int num3;
+               int num4;
+               };
+
+def foo() : int {
+  %thing bar;
+  bar := new %thing;
+  bar.next := new %thing;
+  return 0;
+}
+
+%thing head;
+int cntr;
+int dummy;
+
+head := new %thing;
+head.next := new %thing;
+
+while cntr < 4 {
+  dummy := foo();
+  cntr := cntr + 1;
+}
+
+output 42;
