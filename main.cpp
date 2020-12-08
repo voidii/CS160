@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Linking the bootstrap code with L1 program object code\n";
     // reset the command line
     cmdLine = std::ostringstream{};
-    cmdLine << "g++-10 -m32 build/bootstrap.o build/gc.o " << outputFileName << ".o -o " << outputFileName;
+    cmdLine << "g++ -m32 build/bootstrap.o build/gc.o " << outputFileName << ".o -o " << outputFileName;
     cmd = cmdLine.str();
     std::cout << "Running linker command: " << cmd << std::endl;
     // Run the linker
