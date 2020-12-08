@@ -18,16 +18,16 @@ GcSemiSpace::GcSemiSpace(intptr_t* frame_ptr, int heap_size_in_words){
   assert((heap_size_in_words >=0 && heap_size_in_words%2 ==0)&&"Heap size should be positive and even");
   assert(sizeof(intptr_t)==4 && "Words must be 4-byte long");
 
-  based_fp=frame_ptr;
-  heap_size=heap_size_in_words;
-  semi_size=heap_size_in_words/2;
-  myHeap=(intptr_t *)malloc(heap_size_in_words * 4); 
+  based_fp = frame_ptr;
+  heap_size = heap_size_in_words;
+  semi_size = heap_size_in_words >> 1;
+  myHeap = new intptr_t[heap_size_in_words];
 
-  from=myHeap;
-  to=myHeap+semi_size;
+  from = myHeap;
+  to = myHeap + semi_size;
 
-  bump_ptr=from;
-  alloc_ptr=to;
+  bump_ptr = from;
+  alloc_ptr = to;
 
 }
 
@@ -51,10 +51,31 @@ intptr_t* GcSemiSpace::Alloc(int32_t num_words, intptr_t * curr_frame_ptr) {
 
 void GcSemiSpace::collect(intptr_t* fp){
   //walk the stack to get the root set
-  walkStack(fp);
+  //walkStack(fp);
   //copy the reachable objects into `to` space, starting from the root set.
+  intptr_t arg_info_word, local_info_word;
+  roots.clear();
+  while(fp < based_fp){
+    arg_info_word = *(fp - 1);
+    //readbit(fp,arg_info_word,2);
+    for(int i = 0 ; i < 32 ; i++){
+        if(arg_info_word & 1){
+            roots.insert(fp + 2 + i);
+        }
+        arg_info_word >>= 1;
+    }
+    local_info_word = *(fp - 2);
+    //readbit(fp,local_info_word, -3);
+    for(int i = 0 ; i < 32 ; i++){
+        if(local_info_word & 1){//find pointer
+            roots.insert(fp - 3 - i);
+        }
+        local_info_word >>= 1;
+    }
+    fp = (intptr_t*) *fp;
+  }
   for(intptr_t* i:roots){
-    i=copy(i);
+    i = copy(i);
   }
   //swap "from" and "to"
   intptr_t* temp= from;
@@ -68,31 +89,31 @@ void GcSemiSpace::collect(intptr_t* fp){
   live_word=0;
 }
 
-void GcSemiSpace::walkStack(intptr_t* fp){
-  intptr_t arg_info_word, local_info_word;
-  roots.clear();
-  while(fp < based_fp){
-    arg_info_word = *(fp - 1);
-    readbit(fp,arg_info_word,2);
-    local_info_word = *(fp - 2);
-    readbit(fp,local_info_word, -3);
-    fp = (intptr_t*) *fp;
-  }
-}
+//void GcSemiSpace::walkStack(intptr_t* fp){
+//  intptr_t arg_info_word, local_info_word;
+//  roots.clear();
+//  while(fp < based_fp){
+//    arg_info_word = *(fp - 1);
+//    readbit(fp,arg_info_word,2);
+//    local_info_word = *(fp - 2);
+//    readbit(fp,local_info_word, -3);
+//    fp = (intptr_t*) *fp;
+//  }
+//}
 
-void GcSemiSpace::readbit(intptr_t* curr_fp,int word,int offset){
-  for(int i=0;i<32;i++){
-    if(word & 1){//find pointer
-      if(offset > 0){//in arg
-        roots.insert(curr_fp + offset + i);
-      }
-      if(offset < 0){//in local
-        roots.insert(curr_fp + offset - i);
-      }
-  }
-    word >>= 1;
-  }
-}
+//void GcSemiSpace::readbit(intptr_t* curr_fp,int word,int offset){
+//  for(int i=0;i<32;i++){
+//    if(word & 1){//find pointer
+//      if(offset > 0){//in arg
+//        roots.insert(curr_fp + offset + i);
+//      }
+//      if(offset < 0){//in local
+//        roots.insert(curr_fp + offset - i);
+//      }
+//  }
+//    word >>= 1;
+//  }
+//}
 
 
 intptr_t* GcSemiSpace::copy(intptr_t* r){

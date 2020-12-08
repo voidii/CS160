@@ -35,8 +35,8 @@ class GcSemiSpace {
   // Throws 'OutOfMemoryError' if the heap runs out of memory.
   intptr_t* Alloc(int32_t num_words, intptr_t * curr_frame_ptr);
   void collect(intptr_t* fp);
-  void walkStack(intptr_t* fp);
-  void readbit(intptr_t* curr_fp,int word,int offset);
+  //void walkStack(intptr_t* fp);
+  //void readbit(intptr_t* curr_fp,int word,int offset);
   intptr_t* copy(intptr_t* r);
   //void swap(intptr_t* f,intptr_t* t);
   //void struct_copy(intptr_t* ptr);
